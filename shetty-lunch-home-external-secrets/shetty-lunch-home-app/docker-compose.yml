@@ -1,0 +1,94 @@
+# Local development stack: docker compose up --build   ->   http://localhost:8080
+name: shetty-lunch-home
+
+x-db-env: &db-env
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: slhadmin
+  DB_PASSWORD: slhpassword
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: slhadmin
+      POSTGRES_PASSWORD: slhpassword
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slhadmin -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  user-service:
+    build: ./services/user-service
+    environment:
+      <<: *db-env
+      PORT: "3001"
+      DB_NAME: userdb
+      JWT_SECRET: local-dev-secret
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  restaurant-service:
+    build: ./services/restaurant-service
+    environment:
+      <<: *db-env
+      PORT: "3002"
+      DB_NAME: restaurantdb
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-service:
+    build: ./services/payment-service
+    environment:
+      <<: *db-env
+      PORT: "3004"
+      DB_NAME: paymentdb
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  order-service:
+    build: ./services/order-service
+    environment:
+      <<: *db-env
+      PORT: "3003"
+      DB_NAME: orderdb
+      JWT_SECRET: local-dev-secret
+      RESTAURANT_SERVICE_URL: http://restaurant-service:3002
+      PAYMENT_SERVICE_URL: http://payment-service:3004
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      restaurant-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
+  frontend:
+    build: ./services/frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - restaurant-service
+      - order-service
+
+volumes:
+  pgdata:

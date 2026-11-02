@@ -1,0 +1,19 @@
+{
+  "name": "slh-order-service",
+  "version": "1.0.0",
+  "description": "Shetty Lunch Home - order placement and tracking service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.12.0"
+  }
+}

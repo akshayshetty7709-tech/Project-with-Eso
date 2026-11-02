@@ -1,0 +1,29 @@
+# PROD: NO "automated" block. After the promotion PR is approved and merged, ArgoCD shows the app
+# as OutOfSync and a human presses SYNC (UI or `argocd app sync slh-prod`). This is the manual gate.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slh-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: shetty-lunch-home
+  source:
+    repoURL: https://github.com/YOUR_GITHUB_USERNAME/shetty-lunch-home-gitops.git
+    targetRevision: main
+    path: overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: slh-prod
+  # The HPA owns order-service replicas; without this every manual sync would reset them to the git value.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: order-service
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Everything common to dev / staging / prod. Overlays add the namespace, image tags,
+# replica counts and the ingress hostname on top of this.
+# NOTE: the Secret "slh-secrets" is NOT in git at all. Each overlay has an ExternalSecret (external-secret.yaml)
+# that points to a path in the secret backend; External Secrets Operator creates the Secret in the cluster.
+resources:
+  - configmap.yaml
+  - postgres.yaml
+  - user-service.yaml
+  - restaurant-service.yaml
+  - payment-service.yaml
+  - order-service.yaml
+  - frontend.yaml
+  - ingress.yaml

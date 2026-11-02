@@ -1,0 +1,22 @@
+# "App of Apps": the only Application you apply by hand. It watches argocd/apps/ and
+# creates the dev / staging / prod Applications from git. Add a new file there = new Application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slh-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_GITHUB_USERNAME/shetty-lunch-home-gitops.git
+    targetRevision: main
+    path: argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: slh-prod
+
+resources:
+  - ../../base
+  - external-secret.yaml
+  - hpa.yaml
+  - pdb.yaml
+
+labels:
+  - pairs:
+      environment: prod
+
+# Updated by scripts/promote.sh (staging -> prod) through a pull request that needs approval.
+# The prod ArgoCD Application has NO auto-sync: a human clicks SYNC after the PR is merged.
+images:
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-user-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-restaurant-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-order-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-payment-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-frontend
+    newTag: latest
+
+# order-service replicas are owned by the HPA (hpa.yaml), so it is not listed here.
+replicas:
+  - name: user-service
+    count: 2
+  - name: restaurant-service
+    count: 2
+  - name: payment-service
+    count: 2
+  - name: frontend
+    count: 2
+
+patches:
+  - target:
+      kind: Ingress
+      name: slh-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: prod.shettylunchhome.local

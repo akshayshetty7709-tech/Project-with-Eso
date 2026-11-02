@@ -1,0 +1,134 @@
+# CI pipeline for Shetty Lunch Home (app repo).
+#
+#   pull request  ->  test (+ security scan)                      [nothing is deployed]
+#   push to main  ->  test -> scan -> build & push images -> update GitOps repo (dev)
+#
+# CI never talks to the Kubernetes cluster. Its only "deployment" action is a git commit
+# to the GitOps repo; ArgoCD (running inside the cluster) pulls and applies that change.
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [user-service, restaurant-service, order-service, payment-service]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+      - name: Syntax check
+        run: node --check server.js
+      - name: Unit tests
+        run: npm test
+
+  security-scan:
+    name: security scan (trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan (dependencies, secrets, Dockerfile misconfig)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true # report-only for practice; set exit-code '1' and remove this line to block builds
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+  secret-scan:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # scan the whole history, not just the last commit
+      - name: Gitleaks - fail the pipeline if a credential is committed
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true # report-only while practising; remove this line to make it blocking
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-push:
+    name: build & push (${{ matrix.service }})
+    needs: [test, security-scan, secret-scan]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [user-service, restaurant-service, order-service, payment-service, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute image name and tag
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=ghcr.io/${OWNER}/slh-${{ matrix.service }}" >> "$GITHUB_ENV"
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.TAG }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  update-gitops:
+    name: update GitOps repo (dev)
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/shetty-lunch-home-gitops
+          token: ${{ secrets.GITOPS_PAT }} # fine-grained PAT: Contents read/write on the GitOps repo only
+          ref: main
+      - name: Bump image tag in the dev overlay and push
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          sed -i -E "s/^([[:space:]]+newTag:).*/\1 ${TAG}/" overlays/dev/kustomization.yaml
+          git config user.name  "slh-ci-bot"
+          git config user.email "slh-ci-bot@users.noreply.github.com"
+          git add overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "dev already on ${TAG}, nothing to commit"
+            exit 0
+          fi
+          git commit -m "ci: deploy ${TAG} to dev (app commit ${GITHUB_SHA})"
+          git pull --rebase origin main
+          git push origin main

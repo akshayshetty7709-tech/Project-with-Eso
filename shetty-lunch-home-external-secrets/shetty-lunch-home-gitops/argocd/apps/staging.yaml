@@ -1,0 +1,23 @@
+# STAGING: automatic sync, but the image tag only changes through a promotion pull request.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slh-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: shetty-lunch-home
+  source:
+    repoURL: https://github.com/YOUR_GITHUB_USERNAME/shetty-lunch-home-gitops.git
+    targetRevision: main
+    path: overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: slh-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

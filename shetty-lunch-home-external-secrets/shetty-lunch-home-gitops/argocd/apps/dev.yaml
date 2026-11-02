@@ -1,0 +1,23 @@
+# DEV: fully automatic. CI commits a new image tag -> ArgoCD syncs it within ~3 minutes.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: slh-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: shetty-lunch-home
+  source:
+    repoURL: https://github.com/YOUR_GITHUB_USERNAME/shetty-lunch-home-gitops.git
+    targetRevision: main
+    path: overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: slh-dev
+  syncPolicy:
+    automated:
+      prune: true    # delete cluster objects that were removed from git
+      selfHeal: true # revert manual kubectl changes (drift) back to what git says
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,21 @@
+# AppProject = the guard rails: which repos ArgoCD may read and which namespaces it may deploy to.
+# Applied once by scripts/bootstrap.sh (kubectl apply -f argocd/project.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: shetty-lunch-home
+  namespace: argocd
+spec:
+  description: Shetty Lunch Home food delivery platform
+  sourceRepos:
+    - https://github.com/YOUR_GITHUB_USERNAME/shetty-lunch-home-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: slh-dev
+    - server: https://kubernetes.default.svc
+      namespace: slh-staging
+    - server: https://kubernetes.default.svc
+      namespace: slh-prod
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace

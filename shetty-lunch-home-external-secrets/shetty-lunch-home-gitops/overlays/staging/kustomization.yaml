@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: slh-staging
+
+resources:
+  - ../../base
+  - external-secret.yaml
+
+labels:
+  - pairs:
+      environment: staging
+
+# Updated by scripts/promote.sh (dev -> staging) through a pull request. Never by CI directly.
+images:
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-user-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-restaurant-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-order-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-payment-service
+    newTag: latest
+  - name: ghcr.io/YOUR_GITHUB_USERNAME/slh-frontend
+    newTag: latest
+
+replicas:
+  - name: user-service
+    count: 2
+  - name: restaurant-service
+    count: 2
+  - name: order-service
+    count: 2
+  - name: payment-service
+    count: 2
+  - name: frontend
+    count: 2
+
+patches:
+  - target:
+      kind: Ingress
+      name: slh-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: staging.shettylunchhome.local

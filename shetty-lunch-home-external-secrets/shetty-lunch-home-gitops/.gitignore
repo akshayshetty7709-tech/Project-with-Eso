@@ -1,0 +1,6 @@
+*.bak
+.DS_Store
+
+# NEVER commit plain secrets or tokens
+*.key
+.env

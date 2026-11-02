@@ -1,0 +1,24 @@
+# Keeps at least one pod of each critical service up during node drains / cluster upgrades.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-service
+  labels:
+    app.kubernetes.io/part-of: shetty-lunch-home
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: order-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend
+  labels:
+    app.kubernetes.io/part-of: shetty-lunch-home
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend

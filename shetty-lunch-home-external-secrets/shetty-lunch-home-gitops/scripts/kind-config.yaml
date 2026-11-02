@@ -1,0 +1,21 @@
+# Local Kubernetes cluster for practice (kind = Kubernetes IN Docker).
+# Maps host ports 80/443 to the ingress controller so http://dev.shettylunchhome.local works in your browser.
+# If port 80 is busy on your machine change hostPort 80 -> 8081 and browse http://dev.shettylunchhome.local:8081
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: slh
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
